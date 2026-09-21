@@ -59,6 +59,9 @@ export function resolveAppRuntimeConfig(input: {
     workingDirectory,
     workspaceIdentity,
   } = input;
+  const runtimeEnv = options.env ?? process.env;
+  const mcpOptInEnabled = isExplicitlyEnabled(runtimeEnv["ZCODE_ENABLE_MCP"]);
+  const hooksOptInEnabled = isExplicitlyEnabled(runtimeEnv["ZCODE_ENABLE_HOOKS"]);
   const userInstructions = options.runtimeConfig?.userInstructions ?? { workingDirectory };
   const registrySelection = resolveInitialRegistrySelection(options);
   // 恢复历史不等于开始执行：失效/缺失选择保持未绑定，不能借 configured default 补齐。
@@ -153,16 +156,20 @@ export function resolveAppRuntimeConfig(input: {
       ...options.runtimeConfig?.modelAnomalyGuard,
     },
     mcp: {
-      enabled: options.runtimeConfig?.mcp?.enabled ?? configResult.config.features.mcp,
-      servers: autoConnectMcpServers,
+      enabled:
+        mcpOptInEnabled &&
+        (options.runtimeConfig?.mcp?.enabled ?? configResult.config.features.mcp),
+      servers: mcpOptInEnabled ? autoConnectMcpServers : {},
       trustedOfficialCuaServerNames: [...trustedOfficialCuaServerNames],
     },
-    hooks: mergeRuntimeHooks(
-      options.runtimeConfig?.hooks
-        ? withHookConfigSource(options.runtimeConfig.hooks, { kind: "internal" })
-        : configResult.config.hooks,
-      input.pluginHooks,
-    ),
+    hooks: hooksOptInEnabled
+      ? mergeRuntimeHooks(
+          options.runtimeConfig?.hooks
+            ? withHookConfigSource(options.runtimeConfig.hooks, { kind: "internal" })
+            : configResult.config.hooks,
+          input.pluginHooks,
+        )
+      : undefined,
     subagents: {
       ...options.runtimeConfig?.subagents,
       enabled: options.runtimeConfig?.subagents?.enabled ?? configResult.config.features.subagent,
@@ -294,4 +301,9 @@ export function runtimeConfigLogContext(
     runtimeFeatureNodeRepl: runtimeConfig.runtimeFeatures?.nodeRepl === true,
     workingDirectory,
   };
+}
+
+
+function isExplicitlyEnabled(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on", "enabled"].includes(value?.trim().toLowerCase() ?? "");
 }
