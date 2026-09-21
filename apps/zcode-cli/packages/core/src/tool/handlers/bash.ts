@@ -74,6 +74,8 @@ const BASH_PROVIDER_DESCRIPTION = createBashProviderDescription({
   maxTimeoutMs: DEFAULT_BASH_TIMEOUT_POLICY.maxTimeoutMs,
 });
 
+const BASH_OPT_IN_ENV_KEY = "ZCODE_ENABLE_BASH";
+
 function resolveBashPermissionCapability(
   input: unknown,
   context?: ToolRuntimePermissionCapabilityContext,
@@ -108,6 +110,34 @@ async function executeBashHandler(
 ): Promise<BashOutput> {
   const parsed = BashInputSchema.parse(input) as BashInput;
   const executionPort = context.executionPort;
+
+  if (!isExplicitlyEnabled(process.env[BASH_OPT_IN_ENV_KEY])) {
+    throw createCoreError(
+      CoreErrorType.ToolExecutionFailed,
+      `Bash is disabled by the hardened profile. Set ${BASH_OPT_IN_ENV_KEY}=1 to enable it explicitly.`,
+      {
+        context: {
+          toolCallId: context.toolCallId,
+          toolName: "Bash",
+        },
+        recoverable: true,
+      },
+    );
+  }
+
+  if (parsed.dangerouslyDisableSandbox === true) {
+    throw createCoreError(
+      CoreErrorType.ToolExecutionFailed,
+      "Hardened mode does not allow dangerouslyDisableSandbox",
+      {
+        context: {
+          toolCallId: context.toolCallId,
+          toolName: "Bash",
+        },
+        recoverable: true,
+      },
+    );
+  }
 
   if (!executionPort) {
     throw createCoreError(
@@ -566,4 +596,9 @@ function createBashInputJsonSchema(timeoutPolicy: BashTimeoutPolicy): Record<str
       },
     },
   };
+}
+
+
+function isExplicitlyEnabled(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on", "enabled"].includes(value?.trim().toLowerCase() ?? "");
 }
