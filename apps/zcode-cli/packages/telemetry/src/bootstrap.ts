@@ -121,7 +121,10 @@ export async function prepareModelTelemetryEnv(
   env: EnvRecord,
   options: PrepareModelTelemetryOptions = {},
 ): Promise<EnvRecord> {
-  if (!resolveOtlpTraceEndpoint(env) || isExplicitlyDisabled(env.ZCODE_MODEL_TELEMETRY_ENABLED)) {
+  if (
+    !isExplicitlyEnabled(env.ZCODE_MODEL_TELEMETRY_ENABLED) ||
+    !resolveOtlpTraceEndpoint(env)
+  ) {
     return env;
   }
   const existingInstallationId = normalizeTelemetryDeviceMid(env.ZCODE_TELEMETRY_DEVICE_MID);
@@ -411,8 +414,8 @@ function validHttpUrl(value: string): string | undefined {
   }
 }
 
-function isExplicitlyDisabled(value: string | undefined): boolean {
-  return ["0", "false", "off", "disabled"].includes(value?.trim().toLowerCase() ?? "");
+function isExplicitlyEnabled(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on", "enabled"].includes(value?.trim().toLowerCase() ?? "");
 }
 
 function safeDecode(value: string): string {
